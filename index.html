@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#101418">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Trace & Paint">
+  <meta name="description" content="Project watercolor outlines onto paper with your phone camera for tracing.">
+  <title>Trace & Paint</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="icon" type="image/png" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="app">
+    <section id="launch-screen" class="screen screen-active">
+      <div class="launch-card">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <p class="eyebrow">Watercolor outline tracing</p>
+        <h1>Trace &amp; Paint</h1>
+        <p class="launch-copy">Hold your phone above watercolor paper, align the outline, and trace directly from the live camera view.</p>
+        <div class="launch-actions">
+          <button id="scan-launch-btn" class="button button-primary">Scan QR Code</button>
+          <button id="demo-btn" class="button button-secondary">Demo Mode</button>
+          <button id="install-btn" class="button button-tertiary hidden">Add to Home Screen</button>
+        </div>
+        <p class="launch-note">Best results: raise screen brightness, allow rear-camera access, and use the app in portrait or landscape while the phone is steady.</p>
+      </div>
+    </section>
+
+    <section id="scanner-screen" class="screen hidden">
+      <div class="scanner-header">
+        <button id="scanner-cancel-btn" class="icon-button" aria-label="Cancel scanner">Close</button>
+        <div>
+          <p class="eyebrow">QR scanner</p>
+          <h2>Load an outline</h2>
+        </div>
+      </div>
+      <div class="scanner-stage">
+        <div id="qr-reader" class="qr-reader"></div>
+        <div class="scanner-mask" aria-hidden="true">
+          <div class="scanner-frame"></div>
+        </div>
+      </div>
+      <p class="scanner-help">Point the camera at a QR code that links to an outline page.</p>
+    </section>
+
+    <section id="tracing-screen" class="screen hidden">
+      <div id="locked-indicator" class="locked-indicator hidden">Position locked</div>
+      <header id="top-bar" class="top-bar visible">
+        <button id="back-btn" class="icon-button" aria-label="Back">←</button>
+        <div id="outline-title" class="top-bar-title">Demo Outline</div>
+        <div class="top-bar-spacer"></div>
+      </header>
+
+      <main id="camera-stage" class="camera-stage" aria-label="Tracing workspace">
+        <video id="camera-feed" playsinline autoplay muted></video>
+        <div id="overlay-viewport" class="overlay-viewport">
+          <div id="overlay-transform" class="overlay-transform">
+            <div id="overlay-backing" class="overlay-backing"></div>
+            <img id="outline-image" alt="Tracing outline">
+          </div>
+        </div>
+        <button id="stage-opacity-btn" class="floating-opacity" aria-label="Cycle opacity">60%</button>
+        <div id="camera-hint" class="camera-hint">Tap anywhere to cycle opacity</div>
+      </main>
+
+      <nav class="control-strip" aria-label="Tracing controls">
+        <button id="opacity-btn" class="control-chip" aria-label="Cycle opacity">60%</button>
+        <button id="lock-btn" class="control-chip control-chip-center" aria-label="Lock overlay">🔓</button>
+        <button id="menu-btn" class="control-chip" aria-label="Open menu">⋯</button>
+      </nav>
+    </section>
+
+    <div id="menu-sheet" class="bottom-sheet hidden" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+      <div id="menu-backdrop" class="sheet-backdrop"></div>
+      <div class="sheet-panel">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <h2 id="menu-title">Menu</h2>
+        <button id="menu-scan-btn" class="sheet-action">Scan New QR Code</button>
+        <button id="menu-reset-btn" class="sheet-action">Reset Position</button>
+        <button id="menu-about-btn" class="sheet-action">About</button>
+        <button id="menu-close-btn" class="sheet-action sheet-action-muted">Close</button>
+      </div>
+    </div>
+
+    <div id="about-sheet" class="bottom-sheet hidden" role="dialog" aria-modal="true" aria-labelledby="about-title">
+      <div id="about-backdrop" class="sheet-backdrop"></div>
+      <div class="sheet-panel">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <h2 id="about-title">About</h2>
+        <p class="sheet-copy">Trace &amp; Paint is a camera-overlay PWA for projecting simple watercolor outlines onto real paper. Outlines you scan are saved locally for offline reuse.</p>
+        <p class="sheet-copy">For iPhone Safari, add the app to your Home Screen for the most stable camera and wake-lock behavior.</p>
+        <button id="about-close-btn" class="sheet-action sheet-action-muted">Close</button>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  </div>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
