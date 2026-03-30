@@ -1,4 +1,4 @@
-const VERSION = "trace-pwa-v2";
+const VERSION = "trace-pwa-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -7,7 +7,8 @@ const APP_SHELL = [
   "./manifest.json",
   "./assets/demo-outline.svg",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  "./lib/html5-qrcode.min.js"
 ];
 
 self.addEventListener("install", (event) => {
@@ -39,7 +40,8 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith("/app.js") ||
     url.pathname.endsWith("/manifest.json") ||
     url.pathname.endsWith("/sw.js") ||
-    url.pathname.endsWith("/demo-outline.svg")
+    url.pathname.endsWith("/demo-outline.svg") ||
+    url.pathname.endsWith("/html5-qrcode.min.js")
   );
 
   if (isShell) {

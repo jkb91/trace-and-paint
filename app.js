@@ -1,13 +1,35 @@
-const APP_VERSION = "1.0.1";
+const APP_VERSION = "1.0.2";
 const DEMO_OUTLINE_PATH = "./assets/demo-outline.svg";
+const DEMO_OUTLINE_CACHE_BUST = "2026-03-29-v3";
 const DEFAULT_OVERLAY_SIZE = { width: 400, height: 600 };
+const MAX_LOCAL_CACHE_ITEMS = 12;
+const MAX_OUTLINE_BLOB_SIZE = 2 * 1024 * 1024;
+const DRAG_THRESHOLD = 8;
+const OPACITY_LEVELS = [
+  { label: "Medium", value: 0.6, backing: 0.3 },
+  { label: "Bold", value: 0.9, backing: 0.42 },
+  { label: "Light", value: 0.3, backing: 0.18 }
+];
 const STORAGE_KEYS = {
   currentOutline: "tracepwa-current-outline",
   outlineCache: "tracepwa-outline-cache",
-  brightnessPrompted: "tracepwa-brightness-prompted"
+  brightnessPrompted: "tracepwa-brightness-prompted",
+  onboardingComplete: "tracepwa-onboarding-complete"
 };
-const OPACITY_LEVELS = [0.6, 0.9, 0.3];
-const MAX_LOCAL_CACHE_ITEMS = 12;
+const ONBOARDING_STEPS = [
+  {
+    title: "Step 1",
+    body: "Drag to move the outline."
+  },
+  {
+    title: "Step 2",
+    body: "Pinch to resize the outline."
+  },
+  {
+    title: "Step 3",
+    body: "Tap anywhere on the stage to change opacity."
+  }
+];
 
 const state = {
   currentScreen: "launch",
@@ -26,7 +48,9 @@ const state = {
   qrStarting: false,
   activePointers: new Map(),
   gesture: null,
-  dragMoved: false
+  dragMoved: false,
+  onboardingStep: 0,
+  onboardingVisible: false
 };
 
 const els = {
@@ -35,6 +59,8 @@ const els = {
     scanner: document.getElementById("scanner-screen"),
     tracing: document.getElementById("tracing-screen")
   },
+  launchActions: document.getElementById("launch-actions"),
+  continueBtn: document.getElementById("continue-btn"),
   scanLaunchBtn: document.getElementById("scan-launch-btn"),
   demoBtn: document.getElementById("demo-btn"),
   installBtn: document.getElementById("install-btn"),
@@ -49,7 +75,6 @@ const els = {
   overlayBacking: document.getElementById("overlay-backing"),
   outlineImage: document.getElementById("outline-image"),
   opacityBtn: document.getElementById("opacity-btn"),
-  stageOpacityBtn: document.getElementById("stage-opacity-btn"),
   lockBtn: document.getElementById("lock-btn"),
   lockedIndicator: document.getElementById("locked-indicator"),
   menuBtn: document.getElementById("menu-btn"),
@@ -64,6 +89,10 @@ const els = {
   aboutSheet: document.getElementById("about-sheet"),
   aboutBackdrop: document.getElementById("about-backdrop"),
   aboutCloseBtn: document.getElementById("about-close-btn"),
+  onboardingOverlay: document.getElementById("onboarding-overlay"),
+  onboardingStepLabel: document.getElementById("onboarding-step-label"),
+  onboardingBody: document.getElementById("onboarding-body"),
+  onboardingNextBtn: document.getElementById("onboarding-next-btn"),
   toast: document.getElementById("toast")
 };
 
@@ -77,17 +106,18 @@ async function init() {
   updateOpacityUI();
   updateLockUI();
   resetTransform(false);
+  syncLaunchActions();
   showScreen("launch");
 }
 
 function bindEvents() {
+  els.continueBtn.addEventListener("click", continueTracing);
   els.scanLaunchBtn.addEventListener("click", openScanner);
   els.demoBtn.addEventListener("click", loadDemoMode);
   els.installBtn.addEventListener("click", installApp);
   els.scannerCancelBtn.addEventListener("click", () => showScreen("launch"));
   els.backBtn.addEventListener("click", () => showScreen("launch"));
   els.opacityBtn.addEventListener("click", cycleOpacity);
-  els.stageOpacityBtn.addEventListener("click", cycleOpacity);
   els.lockBtn.addEventListener("click", toggleLock);
   els.menuBtn.addEventListener("click", openMenu);
   els.menuBackdrop.addEventListener("click", closeMenu);
@@ -106,6 +136,7 @@ function bindEvents() {
   });
   els.aboutBackdrop.addEventListener("click", closeAbout);
   els.aboutCloseBtn.addEventListener("click", closeAbout);
+  els.onboardingNextBtn.addEventListener("click", advanceOnboarding);
 
   els.cameraStage.addEventListener("click", handleStageTap);
   els.cameraStage.addEventListener("pointerdown", onPointerDown, { passive: false });
@@ -114,10 +145,11 @@ function bindEvents() {
   els.cameraStage.addEventListener("pointercancel", onPointerUp, { passive: false });
   els.cameraStage.addEventListener("pointerleave", onPointerUp, { passive: false });
 
-  els.outlineImage.addEventListener("load", syncOverlayDimensions);
+  els.outlineImage.addEventListener("load", handleOutlineImageLoad);
   els.outlineImage.addEventListener("error", handleOutlineImageError);
   window.addEventListener("resize", syncOverlayDimensions);
   document.addEventListener("visibilitychange", handleVisibilityChange);
+  document.addEventListener("keydown", handleGlobalKeydown);
   window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
   window.addEventListener("appinstalled", () => {
     state.deferredPrompt = null;
@@ -144,12 +176,45 @@ function restoreLastOutline() {
     if (!saved) {
       return;
     }
-    const outline = JSON.parse(saved);
-    state.currentOutline = outline;
-    updateOutlineTitle(outline.name);
+    state.currentOutline = JSON.parse(saved);
+    hydrateCurrentOutlineFromCache();
+    updateOutlineTitle(state.currentOutline?.name);
   } catch (error) {
     console.warn("Failed to restore outline", error);
   }
+}
+
+function hydrateCurrentOutlineFromCache() {
+  if (!state.currentOutline || state.currentOutline.source) {
+    return;
+  }
+
+  const cached = loadOutlineCache().find((item) => item.id === state.currentOutline.id);
+  if (cached) {
+    state.currentOutline = cached;
+  }
+}
+
+function syncLaunchActions() {
+  const hasSavedOutline = Boolean(getSavedOutline());
+  els.continueBtn.classList.toggle("hidden", !hasSavedOutline);
+
+  if (hasSavedOutline) {
+    els.scanLaunchBtn.classList.remove("button-primary");
+    els.scanLaunchBtn.classList.add("button-secondary");
+    els.demoBtn.classList.remove("button-secondary");
+    els.demoBtn.classList.add("button-tertiary");
+  } else {
+    els.scanLaunchBtn.classList.add("button-primary");
+    els.scanLaunchBtn.classList.remove("button-secondary");
+    els.demoBtn.classList.add("button-secondary");
+    els.demoBtn.classList.remove("button-tertiary");
+  }
+}
+
+function getSavedOutline() {
+  hydrateCurrentOutlineFromCache();
+  return state.currentOutline && state.currentOutline.source ? state.currentOutline : null;
 }
 
 function maybePromptBrightness() {
@@ -192,12 +257,17 @@ function showScreen(screenName) {
     releaseWakeLock();
     closeMenu();
     closeAbout();
+    hideOnboarding();
+    syncLaunchActions();
     return;
   }
 
   if (screenName === "scanner") {
     stopCamera();
     releaseWakeLock();
+    closeMenu();
+    closeAbout();
+    hideOnboarding();
     startScanner().catch((error) => {
       console.error(error);
       showToast(getUserMediaErrorMessage(error));
@@ -217,25 +287,49 @@ function showScreen(screenName) {
   }
 }
 
+async function continueTracing() {
+  const outline = getSavedOutline();
+  if (!outline) {
+    showToast("No saved outline found.");
+    syncLaunchActions();
+    return;
+  }
+
+  applyOutline(outline);
+  showToast(`Continuing ${outline.name}`);
+  showScreen("tracing");
+}
+
 async function loadDemoMode() {
   try {
-    const demoUrl = new URL(DEMO_OUTLINE_PATH, window.location.href).href;
-    const response = await fetch(demoUrl, { cache: "reload" });
+    const demoUrl = new URL(DEMO_OUTLINE_PATH, window.location.href);
+    demoUrl.searchParams.set("v", DEMO_OUTLINE_CACHE_BUST);
+    console.log("[trace-pwa] demo mode requested", demoUrl.href);
+
+    const response = await fetch(demoUrl.href, { cache: "no-store" });
     if (!response.ok) {
       throw new Error(`Demo outline request failed: ${response.status}`);
     }
+
     const svgText = await response.text();
     const dimensions = parseSvgDimensions(svgText);
     const outline = {
       id: "demo-outline",
       slug: "demo-outline",
       name: "Demo Flower",
-      source: demoUrl,
+      source: svgTextToDataUrl(svgText),
+      remoteUrl: demoUrl.href,
       savedAt: Date.now(),
       width: dimensions.width,
       height: dimensions.height,
       isDemo: true
     };
+
+    console.log("[trace-pwa] demo outline prepared", {
+      width: outline.width,
+      height: outline.height,
+      sourcePrefix: outline.source.slice(0, 48)
+    });
 
     applyOutline(outline);
     showToast("Demo outline loaded");
@@ -258,6 +352,9 @@ async function startTracingView() {
   attachCameraStream();
   showTopBarTemporarily();
   hideHintAfterDelay();
+  syncOverlayDimensions();
+  debugOverlayState("startTracingView");
+  maybeShowOnboarding();
 }
 
 async function ensureCameraStream() {
@@ -413,6 +510,9 @@ async function fetchAndStoreOutline(parsed) {
   }
 
   const blob = await response.blob();
+  if (blob.size > MAX_OUTLINE_BLOB_SIZE) {
+    throw new Error("Outline too large");
+  }
   if (!blob.type.includes("image")) {
     throw new Error("Downloaded outline was not an image.");
   }
@@ -438,9 +538,19 @@ function applyOutline(outline) {
   updateOpacityUI();
   updateOutlineTitle(outline.name);
   els.outlineImage.src = outline.source;
+  console.log("[trace-pwa] outline applied", {
+    id: outline.id,
+    name: outline.name,
+    src: outline.source,
+    width: outline.width,
+    height: outline.height
+  });
   persistCurrentOutline(outline);
+  saveOutlineToLocalCache(outline);
   resetTransform(false);
   syncOverlayDimensions();
+  syncLaunchActions();
+  debugOverlayState("applyOutline");
 }
 
 function persistCurrentOutline(outline) {
@@ -481,25 +591,29 @@ function cycleOpacity(event) {
 
   state.opacityIndex = (state.opacityIndex + 1) % OPACITY_LEVELS.length;
   updateOpacityUI();
+  showTopBarTemporarily();
 }
 
 function updateOpacityUI() {
-  const value = OPACITY_LEVELS[state.opacityIndex];
-  const label = `${Math.round(value * 100)}%`;
-  els.opacityBtn.textContent = label;
-  els.stageOpacityBtn.textContent = label;
-  els.outlineImage.style.opacity = String(value);
-  els.overlayBacking.style.opacity = String(Math.max(0.18, value * 0.5));
+  const current = OPACITY_LEVELS[state.opacityIndex];
+  els.opacityBtn.textContent = current.label;
+  els.outlineImage.style.opacity = String(current.value);
+  els.overlayBacking.style.opacity = String(current.backing);
 }
 
 function toggleLock() {
   state.locked = !state.locked;
   updateLockUI();
   showTopBarTemporarily();
+  showToast(
+    state.locked
+      ? "Position locked — drag and pinch disabled"
+      : "Position unlocked — you can reposition"
+  );
 }
 
 function updateLockUI() {
-  els.lockBtn.textContent = state.locked ? "🔒" : "🔓";
+  els.lockBtn.textContent = state.locked ? "Locked" : "Lock";
   els.lockedIndicator.classList.toggle("hidden", !state.locked);
 }
 
@@ -507,18 +621,26 @@ function resetTransform(showFeedback = true) {
   state.transform = { x: 0, y: 0, scale: 1 };
   applyTransform();
   if (showFeedback) {
-    showToast("Overlay position reset");
+    showToast("Size and position reset");
   }
 }
 
 function applyTransform() {
   const { x, y, scale } = state.transform;
-  els.overlayTransform.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${scale})`;
+  els.overlayTransform.style.transform =
+    `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${scale})`;
 }
 
 function syncOverlayDimensions() {
-  const width = els.outlineImage.naturalWidth || state.currentOutline?.width || DEFAULT_OVERLAY_SIZE.width;
-  const height = els.outlineImage.naturalHeight || state.currentOutline?.height || DEFAULT_OVERLAY_SIZE.height;
+  const width =
+    els.outlineImage.naturalWidth ||
+    state.currentOutline?.width ||
+    DEFAULT_OVERLAY_SIZE.width;
+  const height =
+    els.outlineImage.naturalHeight ||
+    state.currentOutline?.height ||
+    DEFAULT_OVERLAY_SIZE.height;
+
   els.overlayBacking.style.width = `${width}px`;
   els.overlayBacking.style.height = `${height}px`;
   els.outlineImage.style.width = `${width}px`;
@@ -526,13 +648,51 @@ function syncOverlayDimensions() {
   applyTransform();
 }
 
+function handleOutlineImageLoad() {
+  syncOverlayDimensions();
+  debugOverlayState("outlineImage.load");
+}
+
 function handleOutlineImageError() {
   console.error("Outline image failed to load", state.currentOutline);
+  debugOverlayState("outlineImage.error");
   showToast("Outline image failed to load.");
 }
 
+function debugOverlayState(reason) {
+  const imageStyle = window.getComputedStyle(els.outlineImage);
+  const viewportStyle = window.getComputedStyle(els.overlayViewport);
+  const stageStyle = window.getComputedStyle(els.cameraStage);
+  const feedStyle = window.getComputedStyle(els.cameraFeed);
+  console.log("[trace-pwa] overlay diagnostics", {
+    reason,
+    screen: state.currentScreen,
+    outlineSrc: els.outlineImage.currentSrc || els.outlineImage.src,
+    imageDisplay: imageStyle.display,
+    imageVisibility: imageStyle.visibility,
+    imageOpacity: imageStyle.opacity,
+    imageWidth: imageStyle.width,
+    imageHeight: imageStyle.height,
+    naturalWidth: els.outlineImage.naturalWidth,
+    naturalHeight: els.outlineImage.naturalHeight,
+    clientWidth: els.outlineImage.clientWidth,
+    clientHeight: els.outlineImage.clientHeight,
+    viewportDisplay: viewportStyle.display,
+    viewportVisibility: viewportStyle.visibility,
+    viewportWidth: viewportStyle.width,
+    viewportHeight: viewportStyle.height,
+    stageDisplay: stageStyle.display,
+    stageVisibility: stageStyle.visibility,
+    stageWidth: stageStyle.width,
+    stageHeight: stageStyle.height,
+    feedZIndex: feedStyle.zIndex,
+    overlayZIndex: viewportStyle.zIndex,
+    imageZIndex: imageStyle.zIndex
+  });
+}
+
 function handleStageTap(event) {
-  if (event.target.closest(".control-strip, .top-bar, .floating-opacity")) {
+  if (event.target.closest(".control-strip, .top-bar, .onboarding-overlay")) {
     return;
   }
 
@@ -545,7 +705,7 @@ function handleStageTap(event) {
 }
 
 function onPointerDown(event) {
-  if (event.target.closest(".control-strip, .top-bar")) {
+  if (event.target.closest(".control-strip, .top-bar, .onboarding-overlay")) {
     return;
   }
 
@@ -596,7 +756,7 @@ function onPointerMove(event) {
   if (state.gesture.type === "drag") {
     const dx = event.clientX - state.gesture.startX;
     const dy = event.clientY - state.gesture.startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+    if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
       state.dragMoved = true;
     }
     state.transform.x = state.gesture.originX + dx;
@@ -687,6 +847,67 @@ function openAbout() {
 
 function closeAbout() {
   els.aboutSheet.classList.add("hidden");
+}
+
+function closeOpenSheets() {
+  let closed = false;
+  if (!els.aboutSheet.classList.contains("hidden")) {
+    closeAbout();
+    closed = true;
+  }
+  if (!els.menuSheet.classList.contains("hidden")) {
+    closeMenu();
+    closed = true;
+  }
+  return closed;
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key !== "Escape") {
+    return;
+  }
+
+  if (closeOpenSheets()) {
+    event.preventDefault();
+  }
+}
+
+function maybeShowOnboarding() {
+  if (state.onboardingVisible) {
+    return;
+  }
+  if (localStorage.getItem(STORAGE_KEYS.onboardingComplete)) {
+    return;
+  }
+
+  state.onboardingVisible = true;
+  state.onboardingStep = 0;
+  els.onboardingOverlay.classList.remove("hidden");
+  renderOnboardingStep();
+}
+
+function renderOnboardingStep() {
+  const step = ONBOARDING_STEPS[state.onboardingStep];
+  els.onboardingStepLabel.textContent = step.title;
+  els.onboardingBody.textContent = step.body;
+  els.onboardingNextBtn.textContent =
+    state.onboardingStep === ONBOARDING_STEPS.length - 1 ? "Got it" : "Next";
+}
+
+function advanceOnboarding() {
+  if (state.onboardingStep < ONBOARDING_STEPS.length - 1) {
+    state.onboardingStep += 1;
+    renderOnboardingStep();
+    return;
+  }
+
+  localStorage.setItem(STORAGE_KEYS.onboardingComplete, "1");
+  hideOnboarding();
+}
+
+function hideOnboarding() {
+  state.onboardingVisible = false;
+  els.onboardingOverlay.classList.add("hidden");
 }
 
 function showTopBarTemporarily() {
@@ -786,6 +1007,10 @@ function blobToDataUrl(blob) {
   });
 }
 
+function svgTextToDataUrl(svgText) {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
+}
+
 function parseSvgDimensions(svgText) {
   const parser = new DOMParser();
   const svg = parser.parseFromString(svgText, "image/svg+xml").documentElement;
@@ -818,11 +1043,6 @@ function getUserMediaErrorMessage(error) {
 }
 
 window.addEventListener("load", () => {
-  if (state.currentOutline && !state.currentOutline.source) {
-    const cached = loadOutlineCache().find((item) => item.id === state.currentOutline.id);
-    if (cached) {
-      state.currentOutline = cached;
-      updateOutlineTitle(cached.name);
-    }
-  }
+  hydrateCurrentOutlineFromCache();
+  syncLaunchActions();
 });

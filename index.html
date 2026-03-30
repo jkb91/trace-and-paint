@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Trace & Paint">
   <meta name="description" content="Project watercolor outlines onto paper with your phone camera for tracing.">
-  <title>Trace & Paint</title>
+  <title>Trace &amp; Paint</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <link rel="icon" type="image/png" href="./icons/icon-192.png">
@@ -22,7 +22,8 @@
         <p class="eyebrow">Watercolor outline tracing</p>
         <h1>Trace &amp; Paint</h1>
         <p class="launch-copy">Hold your phone above watercolor paper, align the outline, and trace directly from the live camera view.</p>
-        <div class="launch-actions">
+        <div id="launch-actions" class="launch-actions">
+          <button id="continue-btn" class="button button-primary hidden">Continue Tracing</button>
           <button id="scan-launch-btn" class="button button-primary">Scan QR Code</button>
           <button id="demo-btn" class="button button-secondary">Demo Mode</button>
           <button id="install-btn" class="button button-tertiary hidden">Add to Home Screen</button>
@@ -51,7 +52,7 @@
     <section id="tracing-screen" class="screen hidden">
       <div id="locked-indicator" class="locked-indicator hidden">Position locked</div>
       <header id="top-bar" class="top-bar visible">
-        <button id="back-btn" class="icon-button" aria-label="Back">←</button>
+        <div class="top-bar-spacer"></div>
         <div id="outline-title" class="top-bar-title">Demo Outline</div>
         <div class="top-bar-spacer"></div>
       </header>
@@ -64,14 +65,14 @@
             <img id="outline-image" alt="Tracing outline">
           </div>
         </div>
-        <button id="stage-opacity-btn" class="floating-opacity" aria-label="Cycle opacity">60%</button>
-        <div id="camera-hint" class="camera-hint">Tap anywhere to cycle opacity</div>
+        <div id="camera-hint" class="camera-hint">Tap anywhere to change opacity</div>
       </main>
 
       <nav class="control-strip" aria-label="Tracing controls">
-        <button id="opacity-btn" class="control-chip" aria-label="Cycle opacity">60%</button>
-        <button id="lock-btn" class="control-chip control-chip-center" aria-label="Lock overlay">🔓</button>
-        <button id="menu-btn" class="control-chip" aria-label="Open menu">⋯</button>
+        <button id="back-btn" class="control-chip" aria-label="Back to launch">Back</button>
+        <button id="opacity-btn" class="control-chip" aria-label="Cycle opacity">Medium</button>
+        <button id="lock-btn" class="control-chip control-chip-center" aria-label="Lock overlay">Lock</button>
+        <button id="menu-btn" class="control-chip" aria-label="Open menu">Menu</button>
       </nav>
     </section>
 
@@ -81,7 +82,7 @@
         <div class="sheet-handle" aria-hidden="true"></div>
         <h2 id="menu-title">Menu</h2>
         <button id="menu-scan-btn" class="sheet-action">Scan New QR Code</button>
-        <button id="menu-reset-btn" class="sheet-action">Reset Position</button>
+        <button id="menu-reset-btn" class="sheet-action">Reset Size &amp; Position</button>
         <button id="menu-about-btn" class="sheet-action">About</button>
         <button id="menu-close-btn" class="sheet-action sheet-action-muted">Close</button>
       </div>
@@ -98,10 +99,20 @@
       </div>
     </div>
 
+    <div id="onboarding-overlay" class="onboarding-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="onboarding-step-label">
+      <div class="onboarding-backdrop"></div>
+      <div class="onboarding-panel">
+        <p id="onboarding-step-label" class="eyebrow">Step 1</p>
+        <h2>Tracing controls</h2>
+        <p id="onboarding-body" class="sheet-copy">Drag to move the outline.</p>
+        <button id="onboarding-next-btn" class="button button-primary">Next</button>
+      </div>
+    </div>
+
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   </div>
 
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="./lib/html5-qrcode.min.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
