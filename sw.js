@@ -1,10 +1,11 @@
-const VERSION = "trace-pwa-v7";
+const VERSION = "trace-pwa-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./manifest.json",
+  "./assets/demo-outline.png",
   "./assets/demo-outline.svg",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
