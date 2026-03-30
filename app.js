@@ -628,7 +628,7 @@ function resetTransform(showFeedback = true) {
 function applyTransform() {
   const { x, y, scale } = state.transform;
   els.overlayTransform.style.transform =
-    `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${scale})`;
+    `translate(${x}px, ${y}px) scale(${scale})`;
 }
 
 function syncOverlayDimensions() {

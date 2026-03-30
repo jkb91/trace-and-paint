@@ -285,30 +285,25 @@ h2 {
   position: absolute;
   inset: 0;
   z-index: 2;
-  overflow: hidden;
+  overflow: visible;
   touch-action: none;
   pointer-events: none;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   visibility: visible;
 }
 
 .overlay-transform {
-  position: absolute;
-  top: 50%;
-  left: 50%;
+  position: relative;
   z-index: 2;
-  width: 0;
-  height: 0;
   transform-origin: center center;
   will-change: transform;
 }
 
 .overlay-backing,
 #outline-image {
-  position: absolute;
-  top: 0;
-  left: 0;
-  transform: translate(-50%, -50%);
+  display: block;
 }
 
 .overlay-backing {
