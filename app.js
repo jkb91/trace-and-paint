@@ -302,40 +302,91 @@ async function continueTracing() {
 
 async function loadDemoMode() {
   try {
-    const demoUrl = new URL(DEMO_OUTLINE_PATH, window.location.href);
-    demoUrl.searchParams.set("v", DEMO_OUTLINE_CACHE_BUST);
-    console.log("[trace-pwa] demo mode requested", demoUrl.href);
+    console.log("[trace-pwa] demo mode: generating flower via canvas");
+    const W = 400, H = 600;
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
 
-    const response = await fetch(demoUrl.href, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`Demo outline request failed: ${response.status}`);
+    // Clear transparent
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw a flower outline
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // Stem
+    ctx.beginPath();
+    ctx.moveTo(200, 540);
+    ctx.quadraticCurveTo(198, 440, 200, 350);
+    ctx.stroke();
+
+    // Leaves
+    ctx.beginPath();
+    ctx.moveTo(200, 430);
+    ctx.quadraticCurveTo(240, 400, 270, 420);
+    ctx.quadraticCurveTo(240, 430, 200, 430);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(200, 470);
+    ctx.quadraticCurveTo(155, 445, 130, 460);
+    ctx.quadraticCurveTo(155, 475, 200, 470);
+    ctx.stroke();
+
+    // Petals (8 elliptical petals around center)
+    const cx = 200, cy = 230, petalRx = 55, petalRy = 90;
+    for (let i = 0; i < 8; i++) {
+      const angle = (i * Math.PI) / 4;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, petalRx * 0.5, petalRy * 0.5, 0, 0, Math.PI * 2);
+      ctx.restore();
+      ctx.stroke();
     }
 
-    const svgText = await response.text();
-    const dimensions = parseSvgDimensions(svgText);
+    // Center circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner details
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx - 8, cy - 5, 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx + 8, cy - 5, 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy + 8, 6, 0.2 * Math.PI, 0.8 * Math.PI);
+    ctx.stroke();
+
+    const pngDataUrl = canvas.toDataURL("image/png");
+    console.log("[trace-pwa] demo PNG generated, length:", pngDataUrl.length);
+
     const outline = {
       id: "demo-outline",
       slug: "demo-outline",
       name: "Demo Flower",
-      source: svgTextToDataUrl(svgText),
-      remoteUrl: demoUrl.href,
+      source: pngDataUrl,
+      remoteUrl: null,
       savedAt: Date.now(),
-      width: dimensions.width,
-      height: dimensions.height,
+      width: W,
+      height: H,
       isDemo: true
     };
-
-    console.log("[trace-pwa] demo outline prepared", {
-      width: outline.width,
-      height: outline.height,
-      sourcePrefix: outline.source.slice(0, 48)
-    });
 
     applyOutline(outline);
     showToast("Demo outline loaded");
     showScreen("tracing");
   } catch (error) {
-    console.error(error);
+    console.error("[trace-pwa] demo mode failed:", error);
     showToast("Could not load the demo outline.");
   }
 }
