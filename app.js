@@ -1,5 +1,6 @@
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.0.1";
 const DEMO_OUTLINE_PATH = "./assets/demo-outline.svg";
+const DEFAULT_OVERLAY_SIZE = { width: 400, height: 600 };
 const STORAGE_KEYS = {
   currentOutline: "tracepwa-current-outline",
   outlineCache: "tracepwa-outline-cache",
@@ -114,6 +115,7 @@ function bindEvents() {
   els.cameraStage.addEventListener("pointerleave", onPointerUp, { passive: false });
 
   els.outlineImage.addEventListener("load", syncOverlayDimensions);
+  els.outlineImage.addEventListener("error", handleOutlineImageError);
   window.addEventListener("resize", syncOverlayDimensions);
   document.addEventListener("visibilitychange", handleVisibilityChange);
   window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -217,14 +219,21 @@ function showScreen(screenName) {
 
 async function loadDemoMode() {
   try {
-    const response = await fetch(DEMO_OUTLINE_PATH, { cache: "reload" });
+    const demoUrl = new URL(DEMO_OUTLINE_PATH, window.location.href).href;
+    const response = await fetch(demoUrl, { cache: "reload" });
+    if (!response.ok) {
+      throw new Error(`Demo outline request failed: ${response.status}`);
+    }
     const svgText = await response.text();
+    const dimensions = parseSvgDimensions(svgText);
     const outline = {
       id: "demo-outline",
       slug: "demo-outline",
       name: "Demo Flower",
-      source: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`,
+      source: demoUrl,
       savedAt: Date.now(),
+      width: dimensions.width,
+      height: dimensions.height,
       isDemo: true
     };
 
@@ -431,6 +440,7 @@ function applyOutline(outline) {
   els.outlineImage.src = outline.source;
   persistCurrentOutline(outline);
   resetTransform(false);
+  syncOverlayDimensions();
 }
 
 function persistCurrentOutline(outline) {
@@ -507,13 +517,18 @@ function applyTransform() {
 }
 
 function syncOverlayDimensions() {
-  const width = els.outlineImage.naturalWidth || 800;
-  const height = els.outlineImage.naturalHeight || 800;
+  const width = els.outlineImage.naturalWidth || state.currentOutline?.width || DEFAULT_OVERLAY_SIZE.width;
+  const height = els.outlineImage.naturalHeight || state.currentOutline?.height || DEFAULT_OVERLAY_SIZE.height;
   els.overlayBacking.style.width = `${width}px`;
   els.overlayBacking.style.height = `${height}px`;
   els.outlineImage.style.width = `${width}px`;
   els.outlineImage.style.height = `${height}px`;
   applyTransform();
+}
+
+function handleOutlineImageError() {
+  console.error("Outline image failed to load", state.currentOutline);
+  showToast("Outline image failed to load.");
 }
 
 function handleStageTap(event) {
@@ -769,6 +784,26 @@ function blobToDataUrl(blob) {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+function parseSvgDimensions(svgText) {
+  const parser = new DOMParser();
+  const svg = parser.parseFromString(svgText, "image/svg+xml").documentElement;
+  const viewBox = svg.getAttribute("viewBox");
+  if (viewBox) {
+    const [, , width, height] = viewBox.trim().split(/[\s,]+/).map(Number);
+    if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+      return { width, height };
+    }
+  }
+
+  const width = parseFloat(svg.getAttribute("width"));
+  const height = parseFloat(svg.getAttribute("height"));
+  if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+    return { width, height };
+  }
+
+  return DEFAULT_OVERLAY_SIZE;
 }
 
 function getUserMediaErrorMessage(error) {
