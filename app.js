@@ -60,6 +60,8 @@ const els = {
     tracing: document.getElementById("tracing-screen")
   },
   launchActions: document.getElementById("launch-actions"),
+  debugOutlineProbe: document.getElementById("debug-outline-probe"),
+  debugOutlineProbeImage: document.getElementById("debug-outline-probe-image"),
   continueBtn: document.getElementById("continue-btn"),
   scanLaunchBtn: document.getElementById("scan-launch-btn"),
   demoBtn: document.getElementById("demo-btn"),
@@ -368,7 +370,12 @@ async function loadDemoMode() {
     ctx.stroke();
 
     const pngDataUrl = canvas.toDataURL("image/png");
-    console.log("[trace-pwa] demo PNG generated, length:", pngDataUrl.length);
+    console.log("[trace-pwa] demo PNG generated", {
+      length: pngDataUrl.length,
+      prefix: pngDataUrl.slice(0, 48),
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height
+    });
 
     const outline = {
       id: "demo-outline",
@@ -588,13 +595,21 @@ function applyOutline(outline) {
   updateLockUI();
   updateOpacityUI();
   updateOutlineTitle(outline.name);
+  els.outlineImage.removeAttribute("src");
+  els.outlineImage.src = "";
+  els.outlineImage.removeAttribute("srcset");
   els.outlineImage.src = outline.source;
+  syncDebugProbe(outline.source);
   console.log("[trace-pwa] outline applied", {
     id: outline.id,
     name: outline.name,
     src: outline.source,
+    srcLength: outline.source?.length || 0,
     width: outline.width,
-    height: outline.height
+    height: outline.height,
+    imageComplete: els.outlineImage.complete,
+    naturalWidth: els.outlineImage.naturalWidth,
+    naturalHeight: els.outlineImage.naturalHeight
   });
   persistCurrentOutline(outline);
   saveOutlineToLocalCache(outline);
@@ -692,14 +707,33 @@ function syncOverlayDimensions() {
     state.currentOutline?.height ||
     DEFAULT_OVERLAY_SIZE.height;
 
+  els.overlayTransform.style.width = `${width}px`;
+  els.overlayTransform.style.height = `${height}px`;
   els.overlayBacking.style.width = `${width}px`;
   els.overlayBacking.style.height = `${height}px`;
   els.outlineImage.style.width = `${width}px`;
   els.outlineImage.style.height = `${height}px`;
   applyTransform();
+  const computed = window.getComputedStyle(els.outlineImage);
+  console.log("[trace-pwa] syncOverlayDimensions", {
+    width,
+    height,
+    transformWidth: els.overlayTransform.style.width,
+    transformHeight: els.overlayTransform.style.height,
+    imageStyleWidth: els.outlineImage.style.width,
+    imageStyleHeight: els.outlineImage.style.height,
+    computedWidth: computed.width,
+    computedHeight: computed.height
+  });
 }
 
 function handleOutlineImageLoad() {
+  console.log("[trace-pwa] outlineImage.load fired", {
+    src: els.outlineImage.currentSrc || els.outlineImage.src,
+    complete: els.outlineImage.complete,
+    naturalWidth: els.outlineImage.naturalWidth,
+    naturalHeight: els.outlineImage.naturalHeight
+  });
   syncOverlayDimensions();
   debugOverlayState("outlineImage.load");
 }
@@ -713,17 +747,23 @@ function handleOutlineImageError() {
 function debugOverlayState(reason) {
   const imageStyle = window.getComputedStyle(els.outlineImage);
   const viewportStyle = window.getComputedStyle(els.overlayViewport);
+  const transformStyle = window.getComputedStyle(els.overlayTransform);
+  const backingStyle = window.getComputedStyle(els.overlayBacking);
   const stageStyle = window.getComputedStyle(els.cameraStage);
   const feedStyle = window.getComputedStyle(els.cameraFeed);
   console.log("[trace-pwa] overlay diagnostics", {
     reason,
     screen: state.currentScreen,
     outlineSrc: els.outlineImage.currentSrc || els.outlineImage.src,
+    outlineComplete: els.outlineImage.complete,
     imageDisplay: imageStyle.display,
     imageVisibility: imageStyle.visibility,
     imageOpacity: imageStyle.opacity,
     imageWidth: imageStyle.width,
     imageHeight: imageStyle.height,
+    imagePosition: imageStyle.position,
+    imageZIndex: imageStyle.zIndex,
+    imageBorder: imageStyle.border,
     naturalWidth: els.outlineImage.naturalWidth,
     naturalHeight: els.outlineImage.naturalHeight,
     clientWidth: els.outlineImage.clientWidth,
@@ -732,13 +772,40 @@ function debugOverlayState(reason) {
     viewportVisibility: viewportStyle.visibility,
     viewportWidth: viewportStyle.width,
     viewportHeight: viewportStyle.height,
+    viewportZIndex: viewportStyle.zIndex,
+    transformWidth: transformStyle.width,
+    transformHeight: transformStyle.height,
+    transformPosition: transformStyle.position,
+    transformBackground: transformStyle.backgroundColor,
+    backingWidth: backingStyle.width,
+    backingHeight: backingStyle.height,
+    backingPosition: backingStyle.position,
+    backingZIndex: backingStyle.zIndex,
     stageDisplay: stageStyle.display,
     stageVisibility: stageStyle.visibility,
     stageWidth: stageStyle.width,
     stageHeight: stageStyle.height,
     feedZIndex: feedStyle.zIndex,
-    overlayZIndex: viewportStyle.zIndex,
-    imageZIndex: imageStyle.zIndex
+    overlayZIndex: viewportStyle.zIndex
+  });
+}
+
+function syncDebugProbe(source) {
+  if (!els.debugOutlineProbe || !els.debugOutlineProbeImage) {
+    return;
+  }
+
+  if (!source) {
+    els.debugOutlineProbe.classList.add("hidden");
+    els.debugOutlineProbeImage.removeAttribute("src");
+    return;
+  }
+
+  els.debugOutlineProbe.classList.remove("hidden");
+  els.debugOutlineProbeImage.src = source;
+  console.log("[trace-pwa] debug probe updated", {
+    srcLength: source.length,
+    srcPrefix: source.slice(0, 48)
   });
 }
 

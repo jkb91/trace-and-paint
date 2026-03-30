@@ -131,6 +131,22 @@ h2 {
   gap: 12px;
 }
 
+.debug-outline-probe {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.debug-outline-probe img {
+  display: block;
+  width: min(100%, 220px);
+  height: auto;
+  border: 2px solid #ff6262;
+  background: rgba(255, 255, 255, 0.92);
+}
+
 .button,
 .sheet-action,
 .control-chip,
@@ -299,6 +315,8 @@ h2 {
   z-index: 2;
   transform-origin: center center;
   will-change: transform;
+  background: rgba(255, 0, 0, 0.3) !important;
+  isolation: isolate;
 }
 
 .overlay-backing,
@@ -307,7 +325,9 @@ h2 {
 }
 
 .overlay-backing {
-  z-index: 2;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: block;
   visibility: visible;
   border-radius: 28px;
@@ -317,16 +337,20 @@ h2 {
 }
 
 #outline-image {
-  z-index: 3;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   display: block;
   visibility: visible;
   opacity: 0.6;
   max-width: none;
   max-height: none;
+  object-fit: fill;
   mix-blend-mode: normal;
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
+  border: 3px solid red !important;
 }
 
 .camera-hint {
