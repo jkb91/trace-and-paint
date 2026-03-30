@@ -1,14 +1,14 @@
 const APP_VERSION = "1.0.2";
 const DEMO_OUTLINE_PATH = "./assets/demo-outline.png";
-const DEMO_OUTLINE_CACHE_BUST = "2026-03-29-v8";
+const DEMO_OUTLINE_CACHE_BUST = "2026-03-29-v9";
 const DEFAULT_OVERLAY_SIZE = { width: 400, height: 533 };
 const MAX_LOCAL_CACHE_ITEMS = 12;
 const MAX_OUTLINE_BLOB_SIZE = 2 * 1024 * 1024;
 const DRAG_THRESHOLD = 8;
 const OPACITY_LEVELS = [
-  { label: "Medium", value: 0.6, backing: 0.3 },
-  { label: "Bold", value: 0.9, backing: 0.42 },
-  { label: "Light", value: 0.3, backing: 0.18 }
+  { label: "Light", value: 0.3, backing: 0.18 },
+  { label: "Clear", value: 0.6, backing: 0.3 },
+  { label: "Bold", value: 0.9, backing: 0.42 }
 ];
 const STORAGE_KEYS = {
   currentOutline: "tracepwa-current-outline",
@@ -27,14 +27,14 @@ const ONBOARDING_STEPS = [
   },
   {
     title: "Step 3",
-    body: "Tap anywhere on the stage to change opacity."
+    body: "Tap a bar to set outline opacity."
   }
 ];
 
 const state = {
   currentScreen: "launch",
   currentOutline: null,
-  opacityIndex: 0,
+  opacityIndex: 1,
   locked: false,
   transform: { x: 0, y: 0, scale: 1 },
   topBarTimer: null,
@@ -60,8 +60,6 @@ const els = {
     tracing: document.getElementById("tracing-screen")
   },
   launchActions: document.getElementById("launch-actions"),
-  debugOutlineProbe: document.getElementById("debug-outline-probe"),
-  debugOutlineProbeImage: document.getElementById("debug-outline-probe-image"),
   continueBtn: document.getElementById("continue-btn"),
   scanLaunchBtn: document.getElementById("scan-launch-btn"),
   demoBtn: document.getElementById("demo-btn"),
@@ -76,8 +74,11 @@ const els = {
   overlayTransform: document.getElementById("overlay-transform"),
   overlayBacking: document.getElementById("overlay-backing"),
   outlineImage: document.getElementById("outline-image"),
-  opacityBtn: document.getElementById("opacity-btn"),
+  opacityToggle: document.getElementById("opacity-toggle"),
+  opacitySegs: document.querySelectorAll(".opacity-seg"),
   lockBtn: document.getElementById("lock-btn"),
+  lockOpenIcon: document.querySelector(".lock-open"),
+  lockClosedIcon: document.querySelector(".lock-closed"),
   lockedIndicator: document.getElementById("locked-indicator"),
   menuBtn: document.getElementById("menu-btn"),
   topBar: document.getElementById("top-bar"),
@@ -119,7 +120,7 @@ function bindEvents() {
   els.installBtn.addEventListener("click", installApp);
   els.scannerCancelBtn.addEventListener("click", () => showScreen("launch"));
   els.backBtn.addEventListener("click", () => showScreen("launch"));
-  els.opacityBtn.addEventListener("click", cycleOpacity);
+  els.opacityToggle.addEventListener("click", handleOpacityToggleClick);
   els.lockBtn.addEventListener("click", toggleLock);
   els.menuBtn.addEventListener("click", openMenu);
   els.menuBackdrop.addEventListener("click", closeMenu);
@@ -358,7 +359,6 @@ async function startTracingView() {
   showTopBarTemporarily();
   hideHintAfterDelay();
   syncOverlayDimensions();
-  debugOverlayState("startTracingView");
   maybeShowOnboarding();
 }
 
@@ -537,7 +537,7 @@ async function fetchAndStoreOutline(parsed) {
 
 function applyOutline(outline) {
   state.currentOutline = outline;
-  state.opacityIndex = 0;
+  state.opacityIndex = 1;
   state.locked = false;
   updateLockUI();
   updateOpacityUI();
@@ -546,24 +546,11 @@ function applyOutline(outline) {
   els.outlineImage.src = "";
   els.outlineImage.removeAttribute("srcset");
   els.outlineImage.src = outline.source;
-  syncDebugProbe(outline.source);
-  console.log("[trace-pwa] outline applied", {
-    id: outline.id,
-    name: outline.name,
-    src: outline.source,
-    srcLength: outline.source?.length || 0,
-    width: outline.width,
-    height: outline.height,
-    imageComplete: els.outlineImage.complete,
-    naturalWidth: els.outlineImage.naturalWidth,
-    naturalHeight: els.outlineImage.naturalHeight
-  });
   persistCurrentOutline(outline);
   saveOutlineToLocalCache(outline);
   resetTransform(false);
   syncOverlayDimensions();
   syncLaunchActions();
-  debugOverlayState("applyOutline");
 }
 
 function persistCurrentOutline(outline) {
@@ -597,19 +584,31 @@ function updateOutlineTitle(title) {
   els.outlineTitle.textContent = title || "Outline";
 }
 
-function cycleOpacity(event) {
-  if (event) {
-    event.stopPropagation();
+function handleOpacityToggleClick(event) {
+  const seg = event.target.closest(".opacity-seg");
+  if (!seg) {
+    return;
   }
 
-  state.opacityIndex = (state.opacityIndex + 1) % OPACITY_LEVELS.length;
+  event.stopPropagation();
+  const nextIndex = Number(seg.dataset.level);
+  if (!Number.isInteger(nextIndex)) {
+    return;
+  }
+
+  state.opacityIndex = nextIndex;
   updateOpacityUI();
+  vibrateSuccess();
   showTopBarTemporarily();
 }
 
 function updateOpacityUI() {
   const current = OPACITY_LEVELS[state.opacityIndex];
-  els.opacityBtn.textContent = current.label;
+  els.opacitySegs.forEach((seg, index) => {
+    const isActive = index === state.opacityIndex;
+    seg.setAttribute("aria-checked", String(isActive));
+    seg.classList.toggle("is-active", isActive);
+  });
   els.outlineImage.style.opacity = String(current.value);
   els.overlayBacking.style.opacity = String(current.backing);
 }
@@ -626,7 +625,13 @@ function toggleLock() {
 }
 
 function updateLockUI() {
-  els.lockBtn.textContent = state.locked ? "Locked" : "Lock";
+  els.lockBtn.dataset.locked = String(state.locked);
+  els.lockBtn.setAttribute(
+    "aria-label",
+    state.locked ? "Unlock overlay position" : "Lock overlay position"
+  );
+  els.lockOpenIcon.classList.toggle("hidden", state.locked);
+  els.lockClosedIcon.classList.toggle("hidden", !state.locked);
   els.lockedIndicator.classList.toggle("hidden", !state.locked);
 }
 
@@ -661,99 +666,15 @@ function syncOverlayDimensions() {
   els.outlineImage.style.width = `${width}px`;
   els.outlineImage.style.height = `${height}px`;
   applyTransform();
-  const computed = window.getComputedStyle(els.outlineImage);
-  console.log("[trace-pwa] syncOverlayDimensions", {
-    width,
-    height,
-    transformWidth: els.overlayTransform.style.width,
-    transformHeight: els.overlayTransform.style.height,
-    imageStyleWidth: els.outlineImage.style.width,
-    imageStyleHeight: els.outlineImage.style.height,
-    computedWidth: computed.width,
-    computedHeight: computed.height
-  });
 }
 
 function handleOutlineImageLoad() {
-  console.log("[trace-pwa] outlineImage.load fired", {
-    src: els.outlineImage.currentSrc || els.outlineImage.src,
-    complete: els.outlineImage.complete,
-    naturalWidth: els.outlineImage.naturalWidth,
-    naturalHeight: els.outlineImage.naturalHeight
-  });
   syncOverlayDimensions();
-  debugOverlayState("outlineImage.load");
 }
 
 function handleOutlineImageError() {
   console.error("Outline image failed to load", state.currentOutline);
-  debugOverlayState("outlineImage.error");
   showToast("Outline image failed to load.");
-}
-
-function debugOverlayState(reason) {
-  const imageStyle = window.getComputedStyle(els.outlineImage);
-  const viewportStyle = window.getComputedStyle(els.overlayViewport);
-  const transformStyle = window.getComputedStyle(els.overlayTransform);
-  const backingStyle = window.getComputedStyle(els.overlayBacking);
-  const stageStyle = window.getComputedStyle(els.cameraStage);
-  const feedStyle = window.getComputedStyle(els.cameraFeed);
-  console.log("[trace-pwa] overlay diagnostics", {
-    reason,
-    screen: state.currentScreen,
-    outlineSrc: els.outlineImage.currentSrc || els.outlineImage.src,
-    outlineComplete: els.outlineImage.complete,
-    imageDisplay: imageStyle.display,
-    imageVisibility: imageStyle.visibility,
-    imageOpacity: imageStyle.opacity,
-    imageWidth: imageStyle.width,
-    imageHeight: imageStyle.height,
-    imagePosition: imageStyle.position,
-    imageZIndex: imageStyle.zIndex,
-    imageBorder: imageStyle.border,
-    naturalWidth: els.outlineImage.naturalWidth,
-    naturalHeight: els.outlineImage.naturalHeight,
-    clientWidth: els.outlineImage.clientWidth,
-    clientHeight: els.outlineImage.clientHeight,
-    viewportDisplay: viewportStyle.display,
-    viewportVisibility: viewportStyle.visibility,
-    viewportWidth: viewportStyle.width,
-    viewportHeight: viewportStyle.height,
-    viewportZIndex: viewportStyle.zIndex,
-    transformWidth: transformStyle.width,
-    transformHeight: transformStyle.height,
-    transformPosition: transformStyle.position,
-    transformBackground: transformStyle.backgroundColor,
-    backingWidth: backingStyle.width,
-    backingHeight: backingStyle.height,
-    backingPosition: backingStyle.position,
-    backingZIndex: backingStyle.zIndex,
-    stageDisplay: stageStyle.display,
-    stageVisibility: stageStyle.visibility,
-    stageWidth: stageStyle.width,
-    stageHeight: stageStyle.height,
-    feedZIndex: feedStyle.zIndex,
-    overlayZIndex: viewportStyle.zIndex
-  });
-}
-
-function syncDebugProbe(source) {
-  if (!els.debugOutlineProbe || !els.debugOutlineProbeImage) {
-    return;
-  }
-
-  if (!source) {
-    els.debugOutlineProbe.classList.add("hidden");
-    els.debugOutlineProbeImage.removeAttribute("src");
-    return;
-  }
-
-  els.debugOutlineProbe.classList.remove("hidden");
-  els.debugOutlineProbeImage.src = source;
-  console.log("[trace-pwa] debug probe updated", {
-    srcLength: source.length,
-    srcPrefix: source.slice(0, 48)
-  });
 }
 
 function handleStageTap(event) {
@@ -766,7 +687,6 @@ function handleStageTap(event) {
     state.dragMoved = false;
     return;
   }
-  cycleOpacity();
 }
 
 function onPointerDown(event) {

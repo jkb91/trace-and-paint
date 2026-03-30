@@ -28,10 +28,6 @@
           <button id="demo-btn" class="button button-secondary">Demo Mode</button>
           <button id="install-btn" class="button button-tertiary hidden">Add to Home Screen</button>
         </div>
-        <div id="debug-outline-probe" class="debug-outline-probe hidden">
-          <p class="eyebrow">Debug probe</p>
-          <img id="debug-outline-probe-image" alt="Debug outline probe">
-        </div>
         <p class="launch-note">Best results: raise screen brightness, allow rear-camera access, and use the app in portrait or landscape while the phone is steady.</p>
       </div>
     </section>
@@ -69,14 +65,44 @@
             <img id="outline-image" alt="Tracing outline">
           </div>
         </div>
-        <div id="camera-hint" class="camera-hint">Tap anywhere to change opacity</div>
+        <div id="camera-hint" class="camera-hint">Adjust controls below</div>
       </main>
 
       <nav class="control-strip" aria-label="Tracing controls">
-        <button id="back-btn" class="control-chip" aria-label="Back to launch">Back</button>
-        <button id="opacity-btn" class="control-chip" aria-label="Cycle opacity">Medium</button>
-        <button id="lock-btn" class="control-chip control-chip-center" aria-label="Lock overlay">Lock</button>
-        <button id="menu-btn" class="control-chip" aria-label="Open menu">Menu</button>
+        <button id="back-btn" class="control-back control-icon-button" aria-label="Back to launch">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14.5 6.5L9 12l5.5 5.5" />
+          </svg>
+        </button>
+        <div id="opacity-toggle" class="opacity-toggle" role="radiogroup" aria-label="Outline opacity">
+          <button class="opacity-seg" type="button" role="radio" aria-checked="false" aria-label="Light opacity" data-level="0">
+            <span class="opacity-bar opacity-bar--light" aria-hidden="true"></span>
+          </button>
+          <button class="opacity-seg" type="button" role="radio" aria-checked="true" aria-label="Clear opacity" data-level="1">
+            <span class="opacity-bar opacity-bar--clear" aria-hidden="true"></span>
+          </button>
+          <button class="opacity-seg" type="button" role="radio" aria-checked="false" aria-label="Bold opacity" data-level="2">
+            <span class="opacity-bar opacity-bar--bold" aria-hidden="true"></span>
+          </button>
+        </div>
+        <button id="lock-btn" class="control-lock" type="button" aria-label="Lock overlay" data-locked="false">
+          <span class="lock-badge" aria-hidden="true"></span>
+          <svg class="lock-icon lock-open" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 10V8a4 4 0 1 1 8 0" />
+            <path d="M7 10h10a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z" />
+          </svg>
+          <svg class="lock-icon lock-closed hidden" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 10V8a4 4 0 1 1 8 0v2" />
+            <path d="M7 10h10a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z" />
+          </svg>
+        </button>
+        <button id="menu-btn" class="control-menu control-icon-button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="5.5" r="1.75" />
+            <circle cx="12" cy="12" r="1.75" />
+            <circle cx="12" cy="18.5" r="1.75" />
+          </svg>
+        </button>
       </nav>
     </section>
 
