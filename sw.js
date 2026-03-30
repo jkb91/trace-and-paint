@@ -1,4 +1,4 @@
-const VERSION = "trace-pwa-v6";
+const VERSION = "trace-pwa-v7";
 const APP_SHELL = [
   "./",
   "./index.html",

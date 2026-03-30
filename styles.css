@@ -143,7 +143,7 @@ h2 {
   display: block;
   width: min(100%, 220px);
   height: auto;
-  border: 2px solid #ff6262;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.92);
 }
 
@@ -315,7 +315,6 @@ h2 {
   z-index: 2;
   transform-origin: center center;
   will-change: transform;
-  background: rgba(255, 0, 0, 0.3) !important;
   isolation: isolate;
 }
 
@@ -350,7 +349,6 @@ h2 {
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
-  border: 3px solid red !important;
 }
 
 .camera-hint {

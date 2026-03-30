@@ -311,70 +311,72 @@ async function loadDemoMode() {
     canvas.height = H;
     const ctx = canvas.getContext("2d");
 
-    // Clear transparent
     ctx.clearRect(0, 0, W, H);
-
-    // Draw a flower outline
     ctx.strokeStyle = "#000";
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 5;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+    const cx = 200;
+    const cy = 300;
 
-    // Stem
     ctx.beginPath();
-    ctx.moveTo(200, 540);
-    ctx.quadraticCurveTo(198, 440, 200, 350);
+    ctx.arc(cx, cy, 80, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Leaves
+    const petals = [
+      { x: 200, y: 150, r: 55 },
+      { x: 330, y: 245, r: 55 },
+      { x: 280, y: 395, r: 55 },
+      { x: 120, y: 395, r: 55 },
+      { x: 70, y: 245, r: 55 }
+    ];
+
+    petals.forEach((petal) => {
+      ctx.beginPath();
+      ctx.arc(petal.x, petal.y, petal.r, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+
+    ctx.beginPath();
+    ctx.moveTo(200, 380);
+    ctx.lineTo(200, 550);
+    ctx.stroke();
+
     ctx.beginPath();
     ctx.moveTo(200, 430);
-    ctx.quadraticCurveTo(240, 400, 270, 420);
-    ctx.quadraticCurveTo(240, 430, 200, 430);
+    ctx.quadraticCurveTo(255, 400, 290, 440);
+    ctx.quadraticCurveTo(245, 455, 200, 430);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(200, 470);
-    ctx.quadraticCurveTo(155, 445, 130, 460);
-    ctx.quadraticCurveTo(155, 475, 200, 470);
+    ctx.moveTo(200, 485);
+    ctx.quadraticCurveTo(145, 455, 110, 495);
+    ctx.quadraticCurveTo(155, 510, 200, 485);
     ctx.stroke();
 
-    // Petals (8 elliptical petals around center)
-    const cx = 200, cy = 230, petalRx = 55, petalRy = 90;
-    for (let i = 0; i < 8; i++) {
-      const angle = (i * Math.PI) / 4;
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(angle);
-      ctx.beginPath();
-      ctx.ellipse(0, 0, petalRx * 0.5, petalRy * 0.5, 0, 0, Math.PI * 2);
-      ctx.restore();
-      ctx.stroke();
+    const imageData = ctx.getImageData(0, 0, W, H);
+    let nonTransparentPixels = 0;
+    for (let index = 3; index < imageData.data.length; index += 4) {
+      if (imageData.data[index] !== 0) {
+        nonTransparentPixels += 1;
+      }
     }
 
-    // Center circle
-    ctx.beginPath();
-    ctx.arc(cx, cy, 30, 0, Math.PI * 2);
-    ctx.stroke();
+    console.log("[trace-pwa] demo canvas validation", {
+      nonTransparentPixels
+    });
 
-    // Inner details
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(cx - 8, cy - 5, 4, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx + 8, cy - 5, 4, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy + 8, 6, 0.2 * Math.PI, 0.8 * Math.PI);
-    ctx.stroke();
+    if (nonTransparentPixels === 0) {
+      throw new Error("Demo canvas rendered zero non-transparent pixels.");
+    }
 
     const pngDataUrl = canvas.toDataURL("image/png");
     console.log("[trace-pwa] demo PNG generated", {
       length: pngDataUrl.length,
       prefix: pngDataUrl.slice(0, 48),
       canvasWidth: canvas.width,
-      canvasHeight: canvas.height
+      canvasHeight: canvas.height,
+      nonTransparentPixels
     });
 
     const outline = {
